@@ -2,7 +2,9 @@
   "name": "jobtrack",
   "version": "0.0.0",
   "description": "Centralize and track a candidate's job applications.",
-  "scripts": {},
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace apps/api"
+  },
   "license": "UNLICENSED",
   "type": "commonjs",
   "private": "true",
