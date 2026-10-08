@@ -1,5 +1,10 @@
 # JobTrack — Master Specification
 
+
+
+
+
+
 **Version:** 3.1  
 **Status:** Definitive project source of truth
 
@@ -8,6 +13,15 @@
 > **Revision 3.1:** integrates the decisions locked during Step 0 (specification lock). The complete decision log is in Appendix A and the known V1 limitations are in Appendix B. The three documents are all at version 3.1.
 
 ---
+
+> 
+> **Update after Phase 1:** decisions D21 and D22 and adjustment P5 were added to Appendix A, and `apps/web` moves from Phase 1 to Phase 3b.
+
+
+
+`apps/web` is created in Phase 3b, when the frontend is first needed.
+
+
 
 # 1. Project identity
 
@@ -209,6 +223,28 @@ Application
  ├── Document
  ├── FollowUp
  └── Contact
+```
+
+```
+jobtrack/
+├── apps/
+│   ├── api/
+│   │   └── src/
+│   └── web/                 (added in Phase 3b)
+├── docs/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── .gitattributes
+├── .gitignore
+├── .nvmrc
+├── .prettierignore
+├── .prettierrc
+├── README.md
+├── eslint.config.mjs
+├── package.json
+├── package-lock.json
+└── tsconfig.base.json
 ```
 
 Platform:
@@ -689,17 +725,35 @@ Deliverable:
 
 ## Phase 1 — Repository
 
+
+
 Create:
 
 ```text
 jobtrack/
-├── apps/web
-├── apps/api
-├── docs
-└── .github
+├── apps/
+│   ├── api/
+│   │   └── src/
+│   └── web/                 (added in Phase 3b)
+├── docs/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── .gitattributes
+├── .gitignore
+├── .nvmrc
+├── .prettierignore
+├── .prettierrc
+├── README.md
+├── eslint.config.mjs
+├── package.json
+├── package-lock.json
+└── tsconfig.base.json
 ```
 
-Configure:
+
+
+Configure Tooling rules :
 
 - npm workspaces;
 - TypeScript (strict, base configuration);
@@ -709,6 +763,9 @@ Configure:
 - Node LTS pinning;
 - base scripts;
 - minimal CI (install, lint, type check, build).
+- `.gitattributes` forces LF line endings for every file, because development happens on Windows and CI runs on Linux;
+- `any` is an ESLint error and must be justified with an explicit disable comment;
+- TypeScript stays below version 7 until the Nest CLI supports it.
 
 ---
 
@@ -733,6 +790,7 @@ Do not implement business CRUD before this foundation is stable.
 
 Implement:
 
+- generation of `apps/web` (Vite, React, TypeScript) wired to the root tooling;
 - application User model (with `email`);
 - local JWT verification;
 - AuthGuard with lazy, idempotent user provisioning;
@@ -1165,6 +1223,9 @@ These decisions were validated during Step 0. They are implementation rules.
 | D18 | NestJS throttling in memory, no Redis. Stricter on admin writes. Trust the proxy behind Render. Supabase Auth limits cover authentication | Tech 41 |
 | D19 | Free-tier cold starts accepted and documented. Frontend loading state, timeout and retries. No keep-alive ping. `GET /api/health` added | Tech 19, 33, 47 |
 | D20 | Deletion strategy: applications hard-deleted with their history, companies refused while referenced, users never deleted in V1, audit never deleted | Tech 43 |
+| D21 | NestJS 11 (CommonJS) with Jest and ESLint for V1. A migration to NestJS 12 is a later, separate decision | Tech 2 |
+| D22 | Node.js 24 LTS pinned through `.nvmrc`. TypeScript stays below version 7 until the Nest CLI supports it | Tech 7 |
+
 
 ## Plan adjustments
 
@@ -1174,6 +1235,7 @@ These decisions were validated during Step 0. They are implementation rules.
 | P2 | Phase 3b added: authentication frontend |
 | P3 | Phase 6 split into 6a (applications UX) and 6b (dashboard and Kanban) |
 | P4 | Tests and Swagger annotations written during each phase |
+| P5 | `apps/web` is generated in Phase 3b instead of Phase 1 |
 
 ---
 
