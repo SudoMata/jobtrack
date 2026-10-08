@@ -1,0 +1,6 @@
+node_modules
+dist
+coverage
+package-lock.json
+# The specifications keep the exact formatting that was validated.
+docs
