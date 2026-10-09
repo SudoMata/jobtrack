@@ -4,3 +4,4 @@ coverage
 package-lock.json
 # The specifications keep the exact formatting that was validated.
 docs
+generated

@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Generated Prisma client
+apps/api/src/generated/
+
 # Build output
 dist/
 build/
