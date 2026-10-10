@@ -17,6 +17,9 @@
 > 
 > **Update after Phase 1:** decisions D21 and D22 and adjustment P5 were added to Appendix A, and `apps/web` moves from Phase 1 to Phase 3b.
 
+>
+> **Update after Phase 2:** decisions D23 to D29 were added to Appendix A, and the Phase 2 and Phase 9 scopes and the known limitations were updated.
+
 
 
 `apps/web` is created in Phase 3b, when the frontend is first needed.
@@ -921,18 +924,14 @@ Render API
 Render Web
 ```
 
-Check the current free-plan conditions first. Then verify:
+Check the current free-plan conditions first, then:
 
-- authentication;
-- CORS;
-- database connection;
-- protected routes;
-- user isolation;
-- admin access;
-- production errors;
-- frontend/backend communication;
-- the health check;
-- behavior after a cold start.
+- create a separate production Supabase project (development and production never share a database);
+- decide email confirmation for production: configure a custom SMTP provider, or document the decision to run without confirmation;
+- run `prisma generate` in the Render build and `prisma migrate deploy` as the release step;
+- apply the same checks (publishable key, TLS, RLS) on the production project.
+
+Then verify:
 
 ---
 
@@ -1192,7 +1191,7 @@ These decisions were validated during Step 0. They are implementation rules.
 | D2 | The application user is created lazily and idempotently in the AuthGuard on the first authenticated call. `ADMIN` is never automatic | Tech 4.3 |
 | D3 | Account status is checked in the database on every request. `SUSPENDED` gives `403` with `ACCOUNT_SUSPENDED`. No Supabase ban in V1. The frontend signs the user out | Tech 6 |
 | D14 | JWT verified locally with JWKS (expiration, issuer, audience). Legacy HS256 secret only if the project requires it | Tech 4.2 |
-| D16 | Email confirmation on in production. Redirect to `/login`. Password reset out of V1 | Tech 4.4, Product 6 |
+| D16 | - Supabase's default email delivery allows 2 emails per hour and only reaches team members. Email confirmation is disabled in development. Production needs a custom SMTP provider or an explicit decision (Phase 9). Redirect to `/login`. Password reset out of V1 | Tech 4.4, Product 6 |
 
 ## Data and API
 
@@ -1225,6 +1224,13 @@ These decisions were validated during Step 0. They are implementation rules.
 | D20 | Deletion strategy: applications hard-deleted with their history, companies refused while referenced, users never deleted in V1, audit never deleted | Tech 43 |
 | D21 | NestJS 11 (CommonJS) with Jest and ESLint for V1. A migration to NestJS 12 is a later, separate decision | Tech 2 |
 | D22 | Node.js 24 LTS pinned through `.nvmrc`. TypeScript stays below version 7 until the Nest CLI supports it | Tech 7 |
+| D23 | The Supabase Data API is disabled on the project. RLS stays enabled on every table as defense in depth | Tech 18.1 |
+| D24 | Prisma 7 with the major version pinned (`prisma-client` generator in CommonJS, `prisma.config.ts`, `@prisma/adapter-pg`). Prisma 8 is a later, separate decision | Tech 18.3 |
+| D25 | The database connection is encrypted and verified against Supabase's CA certificate (`DATABASE_SSL_CA_PATH`). Verification is never disabled | Tech 18.3 |
+| D26 | An invalid environment configuration stops the API from starting. An unreachable database is logged and does not. `DIRECT_URL` is read only by the Prisma CLI | Tech 18.3, 39 |
+| D27 | Supabase's publishable key replaces the legacy `anon` key in the frontend (`VITE_SUPABASE_PUBLISHABLE_KEY`). The secret key is not used in V1 | Tech 39 |
+| D28 | `@nestjs/config` 4 (the CommonJS line for NestJS 11) with validation through class-validator | Tech 39 |
+| D29 | Development and production use separate Supabase projects. The production project is created in Phase 9 | Tech 47 |
 
 
 ## Plan adjustments

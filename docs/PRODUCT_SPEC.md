@@ -213,7 +213,7 @@ Authentication is provided by Supabase Auth.
 ## 6.1 User actions
 
 - register;
-- confirm their email address (required in production);
+- confirm their email address (enabled in production once an email delivery provider is configured);
 - login;
 - logout;
 - maintain a session;

@@ -155,6 +155,7 @@ The backend:
 - The API also validates the token's expiration, issuer and audience.
 - Fallback: if the Supabase project still uses a legacy shared-secret signing key (HS256), the backend verifies the signature with a `SUPABASE_JWT_SECRET` variable instead. The signing-key type is confirmed in Phase 2 (infrastructure). The rest of the design is identical in both cases.
 - The role and the account status are never read from the token. They are read from the application database.
+- Verified in Phase 2: the project signs tokens with an asymmetric ES256 key, published at `https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json`. `SUPABASE_JWT_SECRET` is therefore not needed.
 
 ## 4.3 Application user provisioning
 
@@ -170,10 +171,10 @@ No SQL trigger on `auth.users` and no dedicated post-registration endpoint is us
 
 ## 4.4 Email confirmation and password reset
 
-- Email confirmation is enabled in Supabase Auth for production. It may be disabled in development.
+- Email confirmation is disabled in development. For production it is enabled only once an email delivery provider is configured (decision in Phase 9).
 - After confirming their email, the user is redirected to `/login` with an explanatory message. No additional route is introduced.
 - Password reset is not part of V1 (no route, no UI). It is documented as a known limitation.
-- Supabase's default email delivery can be heavily limited. Whether a custom SMTP provider is needed is verified in Phase 2, before any choice is made.
+- Supabase's default email delivery is limited to 2 emails per hour for the whole project and only reaches members of the project's team. Before production, either a custom SMTP provider is configured, or the decision to run without email confirmation is documented.
 
 ## 4.5 Authorization
 
@@ -261,10 +262,16 @@ Monorepo managed with npm workspaces:
 ```text
 jobtrack/
 ├── apps/
-│   ├── web/
-│   │   └── src/
-│   └── api/
-│       └── src/
+│   ├── api/
+│   │   ├── certs/               Supabase CA certificate (public)
+│   │   ├── prisma/              schema.prisma and migrations
+│   │   ├── src/
+│   │   │   ├── config/          validated environment variables
+│   │   │   ├── generated/       Prisma client (not committed)
+│   │   │   └── prisma/          PrismaModule and PrismaService
+│   │   ├── .env.example
+│   │   └── prisma.config.ts
+│   └── web/                     (added in Phase 3b)
 ├── docs/
 │   ├── PRODUCT_SPEC.md
 │   ├── TECHNICAL_SPEC.md
@@ -872,10 +879,10 @@ Minimal returned data
 Supabase Row Level Security is enabled as defense in depth, and only for that purpose.
 
 - RLS is enabled on every application table (`User`, `Company`, `Application`, `ApplicationStatusHistory`, `AuditLog`, and every future table).
-- No policies are defined in V1. With RLS enabled and no policy, the `anon` and `authenticated` roles are denied by default: the public `anon` key shipped in the frontend cannot read or write application data through Supabase's data API.
+- No policies are defined in V1. With RLS enabled and no policy, the `publishable key` and `authenticated` roles are denied by default: the public `publishable key` key shipped in the frontend cannot read or write application data through Supabase's data API.
 - The NestJS API connects with server-side database credentials and remains the only authorization layer. Ownership and role rules are not duplicated as RLS policies.
 - Prisma does not manage RLS. Every migration that creates a table includes the SQL statement enabling RLS.
-- Verification: after each migration that creates a table, a manual test with the `anon` key confirms that no data can be read or written.
+- Verification: once a table exists (from Phase 3), a request on its `/rest/v1/<table>` endpoint with the publishable key confirms that no data can be read or written. The root endpoint alone proves nothing, because it is reserved to secret keys anyway.
 
 > RLS does not replace NestJS authorization.
 
@@ -884,11 +891,23 @@ Supabase Row Level Security is enabled as defense in depth, and only for that pu
 - `DATABASE_URL`: pooled connection (Supabase pooler, transaction mode), used by the API at runtime. Prisma interactive transactions are used in this mode: they stay on one connection for the duration of the transaction.
 - `DIRECT_URL`: direct connection, used only by the Prisma migration CLI. If a direct connection is not reachable from the development machine or from CI, the pooler in session mode is used instead.
 - Migrations never go through the transaction-mode pooler.
-- The exact connection parameters depend on the installed Prisma version. They are verified against current documentation in Phase 2, before they are fixed.
+- Both connections were verified in Phase 2.
 
 The service-role key is not used in V1 and must never be exposed to the browser.
 
 ---
+
+## 18.3 Prisma 7 and TLS
+- Supabase project (Data API disabled);
+- PostgreSQL;
+- Supabase Auth (email confirmation disabled in development, decided for production in Phase 9);
+- JWT signing keys confirmed asymmetric (ES256, verified through JWKS);
+- Supabase's default email delivery limits checked;
+- validated environment configuration (the API refuses to start if it is invalid);
+- Prisma 7 (major version pinned) with the pooled `DATABASE_URL` and the direct `DIRECT_URL`;
+- TLS connection verified against Supabase's CA certificate;
+- `PrismaModule` and `PrismaService`;
+- database migration process, including RLS in every migration. The publishable-key check on a table endpoint is done once the first table exists (Phase 3).
 
 # 19. API conventions
 
@@ -1451,7 +1470,7 @@ Test:
 
 ## 37.4 Manual verification
 
-- RLS: after each migration creating a table, confirm with the `anon` key that no data is accessible (section 18.1).
+- RLS: after each migration creating a table, confirm with the `publishable key` key that no data is accessible (section 18.1).
 
 ---
 
@@ -1485,7 +1504,7 @@ Frontend:
 
 ```text
 VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
+VITE_SUPABASE_PUBLISHABLE_KEY
 VITE_API_URL
 ```
 
@@ -1494,6 +1513,7 @@ Backend:
 ```text
 DATABASE_URL
 DIRECT_URL
+DATABASE_SSL_CA_PATH
 SUPABASE_URL
 PORT
 CORS_ORIGIN
@@ -1509,7 +1529,7 @@ Not used in V1:
 
 ```text
 SUPABASE_SERVICE_ROLE_KEY
-SUPABASE_ANON_KEY (backend)
+SUPABASE_publishable key_KEY (backend)
 ```
 
 Only variables actually required by the implementation should remain.
@@ -1525,6 +1545,12 @@ SUPABASE_SERVICE_ROLE_KEY (if it is ever introduced)
 
 to the frontend.
 
+Notes:
+
+- Environment variables are validated at startup (`apps/api/src/config`, class-validator through `@nestjs/config` 4, the CommonJS line that matches NestJS 11). Error messages never include values.
+- `DIRECT_URL` is read only by the Prisma CLI (`prisma.config.ts`) and is not validated by the API.
+- `DATABASE_SSL_CA_PATH` is relative to `apps/api`.
+- Supabase's publishable key replaces the legacy `anon` key. The secret key replaces the legacy `service_role` key and is not used in V1.
 ---
 
 # 40. CORS
@@ -1693,6 +1719,7 @@ Free-tier behavior:
 - the README documents this behavior and how to wake a paused Supabase project;
 - no artificial keep-alive ping is used in V1;
 - the current conditions of the free plans are verified before deployment (Phase 9).
+- development and production use separate Supabase projects. The production project is created in Phase 9.
 
 ---
 
@@ -1700,12 +1727,14 @@ Free-tier behavior:
 
 The CI is introduced early and grows with the project:
 
-- **From Phase 1:** install dependencies, lint, type check, build.
+- **From Phase 1:** install dependencies, lint, format check, type check, build. Since Phase 2, the Prisma client is generated right after the installation (it is not committed).
 - **From the first tests (Phase 3):** the test step is added and must pass.
 - **Complete pipeline (Phase 8):**
 
 ```text
 Install dependencies
+       ↓
+Generate Prisma client
        ↓
 Lint
        ↓
@@ -1739,11 +1768,13 @@ Every migration that creates a table also:
 
 - enables RLS on it (no policies, section 18.1);
 - includes the SQL for constraints Prisma cannot express (CHECK constraints, functional unique indexes);
-- is followed by the manual `anon`-key verification.
+- is followed by the manual `publishable-key`-key verification.
 
 Migrations use `DIRECT_URL`. Never casually modify production schema manually without updating the migration history.
 
 Migrations are incremental: only the entities required by the feature being implemented are added in each phase.
+
+Scripts (run for `apps/api`): `prisma:migrate:create`, `prisma:migrate:dev`, `prisma:migrate:deploy`, `prisma:migrate:status`. A migration is always created first with `--create-only`, then its SQL is reviewed and the RLS statement is added, then it is applied. Migration creation was verified on Supabase in Phase 2 (shadow database).
 
 ---
 
@@ -1825,7 +1856,7 @@ A V1 backend is ready when:
 - admin endpoints are protected;
 - admin safeguards work (no self-modification, never zero active ADMIN);
 - audit events work for sensitive actions;
-- RLS is enabled on all application tables and verified with the `anon` key;
+- RLS is enabled on all application tables and verified with the `publishable key` key;
 - `GET /api/health` works;
 - tests pass;
 - Swagger is available;
