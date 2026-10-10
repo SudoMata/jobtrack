@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { UsersModule } from '../users/users.module';
 import { AuthGuard } from './auth.guard';
 import { JwtVerifierService } from './jwt-verifier.service';
+import { RolesGuard } from './roles.guard';
 import { supabaseJwksProvider } from './supabase-jwks.provider';
 
 @Module({
@@ -10,8 +11,10 @@ import { supabaseJwksProvider } from './supabase-jwks.provider';
   providers: [
     supabaseJwksProvider,
     JwtVerifierService,
-    // Registered globally: every route requires authentication unless marked @Public().
+    // Global guards run in the order they are declared:
+    // authentication first, then role authorization.
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
   exports: [JwtVerifierService],
 })
