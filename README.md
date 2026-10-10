@@ -58,6 +58,31 @@ Run these from the repository root.
 | `npm run build`        | Build every application                 |
 | `npm run test`         | Run the tests of every application      |
 
+## Database migrations
+
+Prisma 7 manages the schema in `apps/api/prisma/schema.prisma`. Migrations are SQL files committed in `apps/api/prisma/migrations/`.
+
+```bash
+# 1. Edit schema.prisma, then generate the SQL without applying it
+npm run prisma:migrate:create --workspace apps/api -- --name <migration_name>
+
+# 2. Review the generated migration.sql and add the RLS statement (see rules below)
+
+# 3. Apply it in development
+npm run prisma:migrate:dev --workspace apps/api
+
+# Production (and CI/CD): apply committed migrations only
+npm run prisma:migrate:deploy --workspace apps/api
+```
+
+Rules:
+
+- Every migration that creates a table also runs `ALTER TABLE "<table>" ENABLE ROW LEVEL SECURITY;`. No policies are defined: only the API, which connects with server-side credentials, reads and writes data.
+- Never edit a migration that has already been applied or committed: create a new one.
+- Never use `prisma db push` or `prisma migrate reset` against anything other than a disposable development database.
+- Migrations use `DIRECT_URL`; the running API uses `DATABASE_URL` (see `.env.example`).
+- The generated client in `apps/api/src/generated` is not committed. Run `npm run prisma:generate --workspace apps/api` after changing the schema.
+
 ## Tooling decisions
 
 - **Monorepo:** npm workspaces. No Turborepo, no Nx, no shared types package.
