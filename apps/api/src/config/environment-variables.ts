@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsString, Matches, Max, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsUrl, Matches, Max, Min } from 'class-validator';
 
 /**
  * Describes every environment variable the API needs at runtime.
@@ -19,4 +19,7 @@ export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   DATABASE_SSL_CA_PATH!: string;
+
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  SUPABASE_URL!: string;
 }
