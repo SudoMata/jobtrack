@@ -21,14 +21,16 @@ The project follows three specification documents in [`docs/`](docs):
 ## Getting started
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/SudoMata/jobtrack/
 cd jobtrack
 nvm use
 npm install
+cp apps/api/.env.example apps/api/.env   # then fill in the values
+npm run prisma:generate --workspace apps/api
 npm run dev:api
 ```
 
-The API listens on `http://localhost:3000` (override with the `PORT` environment variable). Every route is served under `/api`. No route exists yet.
+Fill in `apps/api/.env` with your own Supabase connection strings (see the comments in `.env.example`). The API listens on `http://localhost:3000` (override with the `PORT` environment variable). Every route is served under `/api`. No route exists yet.
 
 ## Repository layout
 
