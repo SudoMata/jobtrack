@@ -7,3 +7,29 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  USER
+  ADMIN
+
+  @@map("role")
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("account_status")
+}
+
+model User {
+  id            String        @id @db.Uuid
+  email         String        @unique @db.VarChar(254)
+  role          Role          @default(USER)
+  accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+  displayName   String?       @map("display_name") @db.VarChar(100)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("users")
+}
