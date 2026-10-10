@@ -10,7 +10,8 @@
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspaces --if-present"
   },
   "license": "UNLICENSED",
   "type": "commonjs",
