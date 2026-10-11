@@ -31,5 +31,37 @@ model User {
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  auditLogs AuditLog[]
+
   @@map("users")
+}
+
+enum AuditAction {
+  ROLE_CHANGED
+  USER_SUSPENDED
+  USER_REACTIVATED
+
+  @@map("audit_action")
+}
+
+enum AuditResourceType {
+  USER
+
+  @@map("audit_resource_type")
+}
+
+model AuditLog {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId  String            @map("actor_user_id") @db.Uuid
+  action       AuditAction
+  resourceType AuditResourceType @map("resource_type")
+  resourceId   String            @map("resource_id") @db.Uuid
+  metadata     Json?             @db.JsonB
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([actorUserId])
+  @@map("audit_logs")
 }
