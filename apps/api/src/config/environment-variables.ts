@@ -22,4 +22,20 @@ export class EnvironmentVariables {
 
   @IsUrl({ protocols: ['https'], require_protocol: true })
   SUPABASE_URL!: string;
+
+  /** Maximum number of requests per minute and per client IP address. */
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  RATE_LIMIT_PER_MINUTE: number = 120;
+
+  /**
+   * Number of reverse proxies between the internet and the API.
+   * It must be the exact number: too high lets clients forge their IP address,
+   * too low makes every client share the proxy's address.
+   */
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  TRUST_PROXY_HOPS: number = 0;
 }
