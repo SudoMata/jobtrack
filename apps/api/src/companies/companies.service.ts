@@ -69,9 +69,7 @@ export class CompaniesService {
     } catch (error) {
       // The foreign key protects a company that applications still use (RESTRICT).
       if (hasPrismaErrorCode(error, PrismaErrorCode.ForeignKeyViolation)) {
-        throw new ConflictException(
-          'This company is linked to applications and cannot be deleted',
-        );
+        throw new ConflictException('This company is linked to applications and cannot be deleted');
       }
       throw error;
     }

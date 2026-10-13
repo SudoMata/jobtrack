@@ -177,9 +177,9 @@ describe('CompaniesService', () => {
       const company = buildCompany();
       update.mockResolvedValue(company);
 
-      await expect(service.update(USER_ID, COMPANY_ID, updateDto({ name: 'New name' }))).resolves.toBe(
-        company,
-      );
+      await expect(
+        service.update(USER_ID, COMPANY_ID, updateDto({ name: 'New name' })),
+      ).resolves.toBe(company);
 
       expect(update).toHaveBeenCalledWith({
         where: { id: COMPANY_ID, userId: USER_ID },
