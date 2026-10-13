@@ -23,6 +23,9 @@
 >
 > **Update after Phase 3:** decisions D30 to D38 and adjustments P6 and P7 were added to Appendix A, and `GET /api/me` was added to the API map.
 
+>
+> **Update after the order decision:** adjustment P8 (backend first) was added to Appendix A, and the execution order is stated at the start of section 18.
+
 `apps/web` is created in Phase 3b, when the frontend is first needed.
 
 
@@ -719,6 +722,8 @@ The architecture is allowed to evolve later if real requirements justify it.
 
 # 18. Development phases
 
+**Execution order (P8):** backend first. After Phase 3, the backend parts of Phases 4, 5, 6b (dashboard endpoint) and 7 (admin) are implemented and tested before any frontend work. Phase 3b and the frontend parts of Phases 4, 6a, 6b and 7 follow afterwards, in that order. The contents of the phases below are unchanged.
+
 Each phase ends with a validation before the next one starts. Tests and Swagger annotations are written during each phase, not postponed. Phase 8 completes them.
 
 ## Phase 0 — Specification lock
@@ -1265,6 +1270,7 @@ These decisions were validated during Step 0. They are implementation rules.
 | P5 | `apps/web` is generated in Phase 3b instead of Phase 1 |
 | P6 | Ownership helpers move from Phase 3 to Phase 4, where the first owned resource shows their real shape |
 | P7 | `GET /api/me` and the global validation pipe are added to Phase 3 |
+| P8 | Backend first: the frontend (Phase 3b and the frontend parts of Phases 4, 6a, 6b and 7) is built after the backend of Phases 4, 5, 6b and 7 |
 
 ---
 
