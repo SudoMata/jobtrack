@@ -32,6 +32,7 @@ model User {
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   auditLogs AuditLog[]
+  companies Company[]
 
   @@map("users")
 }
@@ -64,4 +65,19 @@ model AuditLog {
   @@index([createdAt])
   @@index([actorUserId])
   @@map("audit_logs")
+}
+
+model Company {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String   @db.VarChar(150)
+  website   String?  @db.VarChar(2048)
+  location  String?  @db.VarChar(150)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("companies")
 }

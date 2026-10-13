@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, User } from '../generated/prisma/client';
+import { hasPrismaErrorCode, PrismaErrorCode } from '../common/errors/prisma-errors';
+import type { User } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -22,7 +23,7 @@ export class UsersService {
     } catch (error) {
       // Two first requests can arrive at the same time: the one that loses the race
       // finds the row created by the winner. Any other failure is a real error.
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (hasPrismaErrorCode(error, PrismaErrorCode.UniqueViolation)) {
         const created = await this.prisma.user.findUnique({ where: { id } });
         if (created) {
           return created;
