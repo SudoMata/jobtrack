@@ -6,6 +6,7 @@ import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { validateEnv } from './config/validate-env';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { CompaniesModule } from './companies/companies.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CommonModule,
     PrismaModule,
     AuthModule,
+    CompaniesModule,
     HealthModule,
   ],
 })
