@@ -1015,10 +1015,16 @@ PATCH  /api/companies/:id
 DELETE /api/companies/:id
 ```
 
-All operations are scoped to the authenticated user.
+All operations are scoped to the authenticated user: the owner always comes from the verified token, never from the request. No endpoint accepts a `userId`.
 
+- `GET /api/companies` is paginated (section 25), with an optional `search` (case-insensitive partial match on the name, trimmed, 100 characters maximum, a blank search is ignored). The order is by name, then by id.
+- `POST` and `PATCH` trim the texts. For `website` and `location`, a blank text is stored as no value.
+- In `PATCH`, a field that is not sent is left unchanged. `website` and `location` are cleared with `null` or a blank text. `name` can never be cleared (`400`).
+- Identifiers in URLs must be UUIDs, otherwise `400`.
+- A company that does not exist and a company owned by someone else both answer `404 Company not found`.
 - Creating or renaming a company to a name the user already has (case-insensitive) returns `409 Conflict`.
-- Deleting a company referenced by at least one application returns `409 Conflict` with a clear message, for example "This company is linked to N applications".
+- Deleting a company referenced by at least one application returns `409 Conflict`. Until applications exist the message is "This company is linked to applications and cannot be deleted". The count ("linked to N applications") is added in Phase 5.
+- `DELETE` answers `204 No Content`.
 
 ---
 
@@ -1133,7 +1139,7 @@ Parameters:
 Rules:
 
 - an invalid value (less than 1, above the maximum, not a number) is rejected with `400`. Values are never silently normalized;
-- a `page` beyond `totalPages` returns `200` with an empty `data` array;
+- `page`: integer between 1 and 1,000,000 (the upper bound prevents absurd offsets, because invalid input must never produce a 500), default `1`;
 - the same contract applies to every paginated endpoint, including the admin lists.
 
 ---
@@ -1155,6 +1161,7 @@ Validate:
 - search parameters;
 - role changes;
 - account status changes.
+- optional texts are trimmed, and a blank optional text is stored as no value (`null`);
 
 DTOs reject unknown properties, so a client cannot send fields it is not allowed to set (for example `status` on the generic update, `source`, `role`, `user_id`).
 
@@ -1323,7 +1330,7 @@ Use a reusable ownership pattern/helper rather than repeating unsafe logic throu
 Concept:
 
 ```text
-getOwnedApplication(applicationId, currentUserId)
+Ownership is part of the query, never a check made afterwards: every read, update and delete of an owned resource filters by owner (`where: { id, userId }`). `orNotFound` (in `common/errors`) turns Prisma's "record not found" into the same `404` whether the resource does not exist or belongs to someone else, so identifiers cannot be probed. The owner id always comes from the authenticated user, never from the request. Lists are filtered by owner too, including their search and their total.
 ```
 
 The helper/service should return the resource only if it belongs to the user.
@@ -1500,6 +1507,8 @@ Test:
 ## 37.5 End-to-end tests
 
 End-to-end tests (`apps/api/test`) run in CI without any secret or database: the JWKS source and `PrismaService` are replaced by test doubles, while the guards, the validation pipe, the exception filter and the rate limiter are the real ones. Test-only controllers are declared inside the test files.
+
+The fake database (`test/support/fake-prisma.ts`) honors the `id`, `userId` and `name` filters and reproduces the database rules (one company name per user ignoring case, companies still in use). A service that forgets to filter by owner makes the isolation tests fail.
 
 ---
 

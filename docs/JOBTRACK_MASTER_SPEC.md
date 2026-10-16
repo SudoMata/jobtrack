@@ -26,6 +26,11 @@
 >
 > **Update after the order decision:** adjustment P8 (backend first) was added to Appendix A, and the execution order is stated at the start of section 18.
 
+>
+> **Update after Phase 4:** decisions D40 to D43 were added to Appendix A.
+
+
+
 `apps/web` is created in Phase 3b, when the frontend is first needed.
 
 
@@ -1257,6 +1262,15 @@ These decisions were validated during Step 0. They are implementation rules.
 | D36 | One exception filter and one strict validation pipe (unknown properties are rejected) are registered globally. Unexpected errors always produce a generic 500 | Tech 26, 27 |
 | D37 | The user is created on the first request by reading first and creating only if missing (no upsert). A concurrent creation is resolved by reading the winner's row | Tech 4.3 |
 | D38 | `AuditService.record` requires the transaction client of the action it describes. An audit failure is never swallowed | Tech 42 |
+
+## Companies (Phase 4)
+
+| # | Decision | Reference |
+|---|---|---|
+| D40 | `GET /api/companies` is paginated, searchable by name and ordered by name | Tech 21 |
+| D41 | `page` is limited to 1,000,000 so that no input can produce a 500 | Tech 25 |
+| D42 | Ownership is part of every query (`where: { id, userId }`). A missing and a foreign resource both answer 404. A malformed identifier answers 400 | Tech 31 |
+| D43 | In `PATCH`, a field that is not sent is unchanged and `null` clears an optional field. A required field can never be cleared | Tech 21 |
 
 
 ## Plan adjustments
