@@ -22,6 +22,55 @@ enum AccountStatus {
   @@map("account_status")
 }
 
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  REJECTED
+
+  @@map("application_status")
+}
+
+enum ContractType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+  OTHER
+
+  @@map("contract_type")
+}
+
+enum WorkMode {
+  REMOTE
+  HYBRID
+  ONSITE
+  OTHER
+
+  @@map("work_mode")
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+
+  @@map("priority")
+}
+
+enum ApplicationSource {
+  MANUAL
+  CSV_IMPORT
+  URL_CAPTURE
+  EMAIL
+  BROWSER_EXTENSION
+  API
+
+  @@map("application_source")
+}
+
 model User {
   id            String        @id @db.Uuid
   email         String        @unique @db.VarChar(254)
@@ -33,6 +82,8 @@ model User {
 
   auditLogs AuditLog[]
   companies Company[]
+  applications  Application[]
+  statusChanges ApplicationStatusHistory[]
 
   @@map("users")
 }
@@ -78,6 +129,56 @@ model Company {
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  applications Application[]
+
+  @@unique([id, userId])
   @@index([userId])
   @@map("companies")
+}
+
+
+
+model Application {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  companyId      String            @map("company_id") @db.Uuid
+  position       String            @db.VarChar(150)
+  contractType   ContractType      @map("contract_type")
+  location       String?           @db.VarChar(150)
+  workMode       WorkMode?         @map("work_mode")
+  jobUrl         String?           @map("job_url") @db.VarChar(2048)
+  appliedAt      DateTime          @map("applied_at") @db.Date
+  status         ApplicationStatus
+  salaryAmount   Decimal?          @map("salary_amount") @db.Decimal(12, 2)
+  salaryCurrency String?           @map("salary_currency") @db.VarChar(3)
+  notes          String?           @db.VarChar(5000)
+  source         ApplicationSource @default(MANUAL)
+  priority       Priority          @default(NORMAL)
+  nextFollowUpAt DateTime?         @map("next_follow_up_at") @db.Date
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  company       Company                    @relation(fields: [companyId, userId], references: [id, userId], onDelete: Restrict)
+  statusHistory ApplicationStatusHistory[]
+
+  @@index([userId, status])
+  @@index([userId, appliedAt])
+  @@index([companyId])
+  @@map("applications")
+}
+
+model ApplicationStatusHistory {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId   String             @map("application_id") @db.Uuid
+  fromStatus      ApplicationStatus? @map("from_status")
+  toStatus        ApplicationStatus  @map("to_status")
+  changedByUserId String             @map("changed_by_user_id") @db.Uuid
+  changedAt       DateTime           @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedBy   User        @relation(fields: [changedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId])
+  @@map("application_status_history")
 }
