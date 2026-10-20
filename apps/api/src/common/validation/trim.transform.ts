@@ -14,3 +14,8 @@ export function trimToNull({ value }: TransformFnParams): unknown {
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
 }
+
+/** Same as `trim`, and converts a text to uppercase (for codes such as currencies). */
+export function trimUppercase({ value }: TransformFnParams): unknown {
+  return typeof value === 'string' ? value.trim().toUpperCase() : value;
+}

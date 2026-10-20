@@ -1,5 +1,5 @@
 import type { TransformFnParams } from 'class-transformer';
-import { trim, trimToNull } from './trim.transform';
+import { trim, trimToNull, trimUppercase } from './trim.transform';
 
 const params = (value: unknown): TransformFnParams => ({ value }) as TransformFnParams;
 
@@ -28,5 +28,17 @@ describe('trimToNull', () => {
   it('leaves anything that is not a text untouched', () => {
     expect(trimToNull(params(undefined))).toBeUndefined();
     expect(trimToNull(params(null))).toBeNull();
+  });
+});
+
+describe('trimUppercase', () => {
+  it('removes the spaces around a text and converts it to uppercase', () => {
+    expect(trimUppercase(params('  usd '))).toBe('USD');
+  });
+
+  it('leaves anything that is not a text untouched', () => {
+    expect(trimUppercase(params(undefined))).toBeUndefined();
+    expect(trimUppercase(params(null))).toBeNull();
+    expect(trimUppercase(params(3))).toBe(3);
   });
 });
