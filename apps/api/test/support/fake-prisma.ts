@@ -40,6 +40,7 @@ interface ApplicationWhere {
   workMode?: WorkMode;
   priority?: Priority;
   location?: TextFilter;
+  companyId?: string;
   OR?: { position?: TextFilter; company?: { name: TextFilter } }[];
 }
 
@@ -76,6 +77,7 @@ interface Projection {
 const SUPPORTED_APPLICATION_FILTERS = new Set([
   'id',
   'userId',
+  'companyId',
   'status',
   'contractType',
   'workMode',
@@ -233,6 +235,7 @@ export function createFakePrisma() {
     const exactFilters = [
       'id',
       'userId',
+      'companyId',
       'status',
       'contractType',
       'workMode',

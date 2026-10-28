@@ -39,6 +39,7 @@ function listQuery(fields: Partial<ListCompaniesQueryDto> = {}): ListCompaniesQu
 }
 
 describe('CompaniesService', () => {
+  const applicationCount = jest.fn();
   const create = jest.fn();
   const findMany = jest.fn();
   const count = jest.fn();
@@ -53,6 +54,7 @@ describe('CompaniesService', () => {
     transaction.mockImplementation((operations: unknown[]) => Promise.all(operations));
     service = new CompaniesService({
       company: { create, findMany, count, findFirstOrThrow, update, delete: remove },
+      application: { count: applicationCount },
       $transaction: transaction,
     } as unknown as PrismaService);
   });
@@ -223,11 +225,33 @@ describe('CompaniesService', () => {
       expect(remove).toHaveBeenCalledWith({ where: { id: COMPANY_ID, userId: USER_ID } });
     });
 
-    it('answers 404 for a company that does not exist or belongs to someone else', async () => {
-      remove.mockRejectedValue(prismaError('P2025'));
+    it('answers 409 and tells how many applications still use the company', async () => {
+      remove.mockRejectedValue(prismaError('P2003'));
+      applicationCount.mockResolvedValue(3);
 
       await expect(service.remove(USER_ID, COMPANY_ID)).rejects.toThrow(
-        new NotFoundException('Company not found'),
+        new ConflictException('This company is linked to 3 applications and cannot be deleted'),
+      );
+      expect(applicationCount).toHaveBeenCalledWith({
+        where: { companyId: COMPANY_ID, userId: USER_ID },
+      });
+    });
+
+    it('uses the singular when a single application uses the company', async () => {
+      remove.mockRejectedValue(prismaError('P2003'));
+      applicationCount.mockResolvedValue(1);
+
+      await expect(service.remove(USER_ID, COMPANY_ID)).rejects.toThrow(
+        new ConflictException('This company is linked to 1 application and cannot be deleted'),
+      );
+    });
+
+    it('keeps a generic message when the applications are gone by the time they are counted', async () => {
+      remove.mockRejectedValue(prismaError('P2003'));
+      applicationCount.mockResolvedValue(0);
+
+      await expect(service.remove(USER_ID, COMPANY_ID)).rejects.toThrow(
+        new ConflictException('This company is linked to applications and cannot be deleted'),
       );
     });
 

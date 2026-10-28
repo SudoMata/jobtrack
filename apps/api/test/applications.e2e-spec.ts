@@ -573,13 +573,25 @@ describe('Applications (e2e)', () => {
   });
 
   describe('companies that are in use', () => {
-    it('refuses to delete a company that has applications, until they are deleted', async () => {
+    it('refuses to delete a company that has applications, and tells how many', async () => {
       const companyId = await createCompany(aliceToken, 'Acme');
-      const application = await createApplication(aliceToken, companyId);
+      const first = await createApplication(aliceToken, companyId, { position: 'First' });
+      const second = await createApplication(aliceToken, companyId, { position: 'Second' });
 
-      await del(`/api/companies/${companyId}`, aliceToken).expect(409);
+      const two = await del(`/api/companies/${companyId}`, aliceToken).expect(409);
+      expect(two.body).toEqual({
+        statusCode: 409,
+        message: 'This company is linked to 2 applications and cannot be deleted',
+      });
 
-      await del(`/api/applications/${application.id}`, aliceToken).expect(204);
+      await del(`/api/applications/${first.id}`, aliceToken).expect(204);
+      const one = await del(`/api/companies/${companyId}`, aliceToken).expect(409);
+      expect(one.body).toEqual({
+        statusCode: 409,
+        message: 'This company is linked to 1 application and cannot be deleted',
+      });
+
+      await del(`/api/applications/${second.id}`, aliceToken).expect(204);
       await del(`/api/companies/${companyId}`, aliceToken).expect(204);
     });
   });

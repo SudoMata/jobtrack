@@ -69,7 +69,7 @@ export class CompaniesService {
     } catch (error) {
       // The foreign key protects a company that applications still use (RESTRICT).
       if (hasPrismaErrorCode(error, PrismaErrorCode.ForeignKeyViolation)) {
-        throw new ConflictException('This company is linked to applications and cannot be deleted');
+        throw await this.companyInUseError(userId, id);
       }
       throw error;
     }
@@ -85,5 +85,19 @@ export class CompaniesService {
       }
       throw error;
     }
+  }
+  /** Builds the 409 of a company that applications still use, telling how many. */
+  private async companyInUseError(userId: string, companyId: string): Promise<ConflictException> {
+    const applications = await this.prisma.application.count({ where: { companyId, userId } });
+
+    // The applications may have been deleted since the database refused: keep a generic message.
+    if (applications === 0) {
+      return new ConflictException('This company is linked to applications and cannot be deleted');
+    }
+
+    const noun = applications === 1 ? 'application' : 'applications';
+    return new ConflictException(
+      `This company is linked to ${applications} ${noun} and cannot be deleted`,
+    );
   }
 }
