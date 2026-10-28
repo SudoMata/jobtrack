@@ -7,6 +7,7 @@ import { validateEnv } from './config/validate-env';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { CompaniesModule } from './companies/companies.module';
+import { ApplicationsModule } from './applications/applications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CompaniesModule } from './companies/companies.module';
     PrismaModule,
     AuthModule,
     CompaniesModule,
+    ApplicationsModule,
     HealthModule,
   ],
 })
