@@ -10,6 +10,11 @@ import { assertFollowUpNotBeforeApplication } from './assert-follow-up-date';
 import { ChangeApplicationStatusDto } from './dto/change-application-status.dto';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
+import { buildPaginated, Paginated } from '../common/pagination/paginated-response';
+import { toSkipTake } from '../common/pagination/to-skip-take';
+import { buildApplicationWhere } from './application-filters';
+import { buildApplicationOrderBy } from './application-order-by';
+import { ListApplicationsQueryDto } from './dto/list-applications-query.dto';
 
 const APPLICATION = 'Application';
 
@@ -27,6 +32,26 @@ export class ApplicationsService {
     return this.rejectUnknownCompany(
       this.prisma.application.create({ data: toCreateData(userId, dto), include: WITH_COMPANY }),
     );
+  }
+
+  async findAll(
+    userId: string,
+    query: ListApplicationsQueryDto,
+  ): Promise<Paginated<ApplicationWithCompany>> {
+    const where = buildApplicationWhere(userId, query);
+
+    // The page and the total are read in one transaction, so they describe the same data.
+    const [applications, total] = await this.prisma.$transaction([
+      this.prisma.application.findMany({
+        where,
+        orderBy: buildApplicationOrderBy(query.sort),
+        include: WITH_COMPANY,
+        ...toSkipTake(query),
+      }),
+      this.prisma.application.count({ where }),
+    ]);
+
+    return buildPaginated(applications, total, query.page, query.limit);
   }
 
   findOne(userId: string, id: string): Promise<ApplicationWithCompany> {

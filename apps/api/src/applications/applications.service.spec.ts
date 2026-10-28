@@ -12,6 +12,7 @@ import { ApplicationsService } from './applications.service';
 import { ChangeApplicationStatusDto } from './dto/change-application-status.dto';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
+import { ListApplicationsQueryDto } from './dto/list-applications-query.dto';
 
 const USER_ID = '3f2b8c1e-5d4a-4c6b-9a7e-1b2c3d4e5f60';
 const APPLICATION_ID = '5b0c8f4e-7a1d-4e2b-9c3a-6d8e1f2a3b4c';
@@ -64,8 +65,14 @@ function statusDto(status: ApplicationStatus): ChangeApplicationStatusDto {
   return Object.assign(new ChangeApplicationStatusDto(), { status });
 }
 
+function listQuery(fields: Partial<ListApplicationsQueryDto> = {}): ListApplicationsQueryDto {
+  return Object.assign(new ListApplicationsQueryDto(), fields);
+}
+
 describe('ApplicationsService', () => {
   const create = jest.fn();
+  const findMany = jest.fn();
+  const count = jest.fn();
   const findFirstOrThrow = jest.fn();
   const update = jest.fn();
   const remove = jest.fn();
@@ -83,9 +90,12 @@ describe('ApplicationsService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    transaction.mockImplementation((callback: (client: typeof tx) => unknown) => callback(tx));
+    // `$transaction` receives either a list of queries (the list) or a callback (a status change).
+    transaction.mockImplementation((work: unknown) =>
+      Array.isArray(work) ? Promise.all(work) : (work as (client: typeof tx) => unknown)(tx),
+    );
     service = new ApplicationsService({
-      application: { create, findFirstOrThrow, update, delete: remove },
+      application: { create, findMany, count, findFirstOrThrow, update, delete: remove },
       $transaction: transaction,
     } as unknown as PrismaService);
   });
@@ -133,6 +143,79 @@ describe('ApplicationsService', () => {
       create.mockRejectedValue(new Error('connection lost'));
 
       await expect(service.create(USER_ID, createDto())).rejects.toThrow('connection lost');
+    });
+  });
+
+  describe('findAll', () => {
+    it('only lists the applications of the user, newest first, one page at a time, with the company', async () => {
+      const application = buildApplication();
+      findMany.mockResolvedValue([application]);
+      count.mockResolvedValue(1);
+
+      const result = await service.findAll(USER_ID, listQuery());
+
+      expect(findMany).toHaveBeenCalledWith({
+        where: { userId: USER_ID },
+        orderBy: [{ appliedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+        include: { company: { select: { id: true, name: true } } },
+        skip: 0,
+        take: 20,
+      });
+      expect(count).toHaveBeenCalledWith({ where: { userId: USER_ID } });
+      expect(result).toEqual({
+        data: [application],
+        meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      });
+    });
+
+    it('applies the filters and the search together with the owner, to the page and to the total', async () => {
+      findMany.mockResolvedValue([]);
+      count.mockResolvedValue(0);
+
+      await service.findAll(USER_ID, listQuery({ status: 'INTERVIEW', search: 'acme' }));
+
+      const where = {
+        userId: USER_ID,
+        status: 'INTERVIEW',
+        OR: [
+          { position: { contains: 'acme', mode: 'insensitive' } },
+          { company: { name: { contains: 'acme', mode: 'insensitive' } } },
+        ],
+      };
+      expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
+      expect(count).toHaveBeenCalledWith({ where });
+    });
+
+    it('sorts the oldest application first when asked to', async () => {
+      findMany.mockResolvedValue([]);
+      count.mockResolvedValue(0);
+
+      await service.findAll(USER_ID, listQuery({ sort: 'appliedAt_asc' }));
+
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ appliedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+        }),
+      );
+    });
+
+    it('skips the previous pages', async () => {
+      findMany.mockResolvedValue([]);
+      count.mockResolvedValue(100);
+
+      await service.findAll(USER_ID, listQuery({ page: 3, limit: 10 }));
+
+      expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 10 }));
+    });
+
+    it('answers an empty page, not an error, beyond the last page', async () => {
+      findMany.mockResolvedValue([]);
+      count.mockResolvedValue(5);
+
+      await expect(service.findAll(USER_ID, listQuery({ page: 9 }))).resolves.toEqual({
+        data: [],
+        meta: { page: 9, limit: 20, total: 5, totalPages: 1 },
+      });
     });
   });
 

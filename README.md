@@ -30,7 +30,7 @@ npm run prisma:generate --workspace apps/api
 npm run dev:api
 ```
 
-Fill in `apps/api/.env` with your own Supabase connection strings (see the comments in `.env.example`). The API listens on `http://localhost:3000` (override with the `PORT` environment variable). Every route is served under `/api`. No route exists yet.
+Fill in `apps/api/.env` with your own Supabase connection strings (see the comments in `.env.example`). The API listens on `http://localhost:2021` (override with the `PORT` environment variable). Every route is served under `/api`. No route exists yet.
 
 ## Repository layout
 
