@@ -366,6 +366,18 @@ export function createFakePrisma() {
     count: ({ where }: { where: ApplicationWhere }) =>
       attempt(() => selectApplications(where).length),
 
+    groupBy: ({ where }: { by: ['status']; where: ApplicationWhere; _count: { _all: true } }) =>
+      attempt(() => {
+        const counts = new Map<ApplicationStatus, number>();
+        for (const row of selectApplications(where)) {
+          counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+        }
+        return [...counts.entries()].map(([status, count]) => ({
+          status,
+          _count: { _all: count },
+        }));
+      }),
+
     findFirstOrThrow: ({
       where,
       include,

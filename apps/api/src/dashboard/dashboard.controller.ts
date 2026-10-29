@@ -1,0 +1,16 @@
+import { Controller, Get } from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/authenticated-user';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { DashboardService } from './dashboard.service';
+import { DashboardStatsResponseDto } from './dto/dashboard-stats-response.dto';
+
+/** The figures of the authenticated user's dashboard. */
+@Controller('dashboard')
+export class DashboardController {
+  constructor(private readonly dashboardService: DashboardService) {}
+
+  @Get('stats')
+  getStats(@CurrentUser() user: AuthenticatedUser): Promise<DashboardStatsResponseDto> {
+    return this.dashboardService.getStats(user.id);
+  }
+}
