@@ -524,6 +524,8 @@ Rules:
 - the salary period (monthly/annual) is not modeled in V1. Users may mention it in the notes;
 - notes are displayed as plain text, never interpreted as HTML.
 
+In the API (decisions D46 and D47) the salary is one nested object `salary: { amount, currency }`, or `null`. The amount is an exact decimal text such as `"3500.00"`, never a number. Dates are texts `YYYY-MM-DD`.
+
 ## 11.4 ApplicationStatusHistory
 
 | Field | Type / rules |
@@ -757,7 +759,8 @@ The implementation enforces:
 - foreign keys with explicit delete behavior (table below);
 - ownership relationships;
 - the length limits defined in section 11;
-- unique constraints: `User.email` and `Company (user_id, lower(name))`;
+- unique constraints: `User.email`, `Company (user_id, lower(name))` and `Company (id, user_id)` (the target of the composite foreign key below);
+- a composite foreign key `Application (company_id, user_id)` → `Company (id, user_id)`: an application can only point to a company of its own owner (decision D44);
 - CHECK constraints where expressible: `salary_amount >= 0`, `salary_amount` and `salary_currency` both set or both null, `next_follow_up_at >= applied_at`.
 
 "`applied_at` is not in the future" depends on the current date and is validated in the application layer.
@@ -770,7 +773,7 @@ Foreign-key delete behavior:
 |---|---|
 | `Company.user_id` → `User` | RESTRICT |
 | `Application.user_id` → `User` | RESTRICT |
-| `Application.company_id` → `Company` | RESTRICT |
+| `Application (company_id, user_id)` → `Company (id, user_id)` | RESTRICT |
 | `ApplicationStatusHistory.application_id` → `Application` | CASCADE (explicit and documented) |
 | `ApplicationStatusHistory.changed_by_user_id` → `User` | RESTRICT |
 | `AuditLog.actor_user_id` → `User` | RESTRICT |
@@ -986,8 +989,15 @@ GET /api/applications?status=INTERVIEW&workMode=REMOTE&page=1&limit=20
 
 ## Creation and update
 
-- `POST` carries the initial `status` and the other fields of section 11.3. `source` is set by the server.
-- `PATCH /api/applications/:id` does **not** accept `status`. The validation rejects it with `400`.
+- `POST` carries the initial `status` and the other fields of section 11.3. `source` and the owner are set by the server; sending them is a `400` (unknown property).
+- The salary is one object `salary: { amount, currency }`, or `null`. The amount is a decimal text (at most 10 digits and 2 decimals), the currency 3 letters (converted to uppercase). `PATCH` replaces the salary as a whole; `null` removes it.
+- Dates are texts `YYYY-MM-DD`. `appliedAt` may not be in the future, where "the future" means later than the most advanced calendar date that exists on Earth at that moment (decision D48). The follow-up date may not be before the application date; the service checks it against the stored dates when only one of the two is sent.
+- A company that does not exist and a company owned by someone else both answer `400` with an error on `companyId` (decision D45).
+- `PATCH /api/applications/:id` does **not** accept `status`: the validation rejects it with `400`. In `PATCH`, an absent field is unchanged, `null` clears an optional field, and a required field can never be cleared.
+
+## Responses
+
+An application is returned with its company reduced to `{ id, name }` (decision D49). The owner is never returned. Dates are `YYYY-MM-DD` texts, and the salary is `{ amount, currency }` with the amount as an exact decimal text with two decimals (for example `"3500.00"`), or `null`.
 
 ## Status endpoint
 
@@ -998,6 +1008,8 @@ PATCH /api/applications/:id/status
 Body: `{ "status": "INTERVIEW" }`.
 
 It is the only way to change the status of an application. Any status may be changed to any other status. Requesting the current status returns `409 Conflict`. See section 28.
+
+The status is written only if it is still the one that was read: a concurrent change answers `409` instead of writing a history line whose `from_status` would not match reality (decision D50).
 
 ## Kanban
 
@@ -1023,7 +1035,8 @@ All operations are scoped to the authenticated user: the owner always comes from
 - Identifiers in URLs must be UUIDs, otherwise `400`.
 - A company that does not exist and a company owned by someone else both answer `404 Company not found`.
 - Creating or renaming a company to a name the user already has (case-insensitive) returns `409 Conflict`.
-- Deleting a company referenced by at least one application returns `409 Conflict`. Until applications exist the message is "This company is linked to applications and cannot be deleted". The count ("linked to N applications") is added in Phase 5.
+- Deleting a company referenced by at least one application returns `409 Conflict`, with the message "This company is linked to N application(s) and cannot be deleted" (singular for one).
+
 - `DELETE` answers `204 No Content`.
 
 ---
@@ -1243,9 +1256,9 @@ Standard messages produced in V1:
 ## Application creation
 
 - authenticated USER required;
-- company must exist;
-- company must belong to the current user;
+- the company must exist and belong to the current user. The composite foreign key of the database enforces it, and the service reports a violation as a `400` with an error on `companyId`, identical in both cases (decision D45);
 - required fields valid;
+- the follow-up date is not before the application date (checked by the service, because an update needs the stored dates);
 - `source` set by the server (`MANUAL`);
 - initial `status` validated against the enum;
 - the application and its initial history entry (`from_status = NULL`) are written in one transaction.
@@ -1264,6 +1277,7 @@ Standard messages produced in V1:
 - any status may be changed to any other status;
 - requesting the current status returns `409 Conflict` and records nothing;
 - the update of `Application.status` and the creation of the history entry happen in one transaction.
+- the status is written only if it is still the one that was read; otherwise `409` (decision D50).
 
 ## Application deletion
 
@@ -1278,7 +1292,7 @@ Standard messages produced in V1:
 ## Company deletion
 
 - ownership verified;
-- refused with `409 Conflict` while at least one application references the company;
+- refused with `409 Conflict` while at least one application references the company, and the message tells how many;
 - no cascade.
 
 ---

@@ -29,6 +29,9 @@
 >
 > **Update after Phase 4:** decisions D40 to D43 were added to Appendix A.
 
+>
+> **Update after Phase 5:** decisions D44 to D51 were added to Appendix A.
+
 
 
 `apps/web` is created in Phase 3b, when the frontend is first needed.
@@ -1271,6 +1274,20 @@ These decisions were validated during Step 0. They are implementation rules.
 | D41 | `page` is limited to 1,000,000 so that no input can produce a 500 | Tech 25 |
 | D42 | Ownership is part of every query (`where: { id, userId }`). A missing and a foreign resource both answer 404. A malformed identifier answers 400 | Tech 31 |
 | D43 | In `PATCH`, a field that is not sent is unchanged and `null` clears an optional field. A required field can never be cleared | Tech 21 |
+
+
+## Applications (Phase 5)
+
+| # | Decision | Reference |
+|---|---|---|
+| D44 | An application can only point to a company of its owner, guaranteed by a composite foreign key `(company_id, user_id)` | Tech 14 |
+| D45 | An unknown company, or one owned by someone else, answers 400 with an error on `companyId` | Tech 20 |
+| D46 | The salary amount is an exact decimal text in the API (`NUMERIC(12,2)` in the database), never a number | Tech 11.3 |
+| D47 | The salary is one object `{ amount, currency }`, replaced as a whole | Tech 20 |
+| D48 | "Not in the future" means not later than the most advanced calendar date on Earth (UTC+14) | Tech 20 |
+| D49 | Applications are returned with their company `{ id, name }` | Tech 20 |
+| D50 | A status is written only if it is still the one that was read, otherwise 409 | Tech 20, 28 |
+| D51 | The "recent applications" of the dashboard come from the applications list, not from the stats endpoint | Tech 22 |
 
 
 ## Plan adjustments
