@@ -41,6 +41,7 @@ interface ApplicationWhere {
   priority?: Priority;
   location?: TextFilter;
   companyId?: string;
+  createdAt?: { gte: Date };
   OR?: { position?: TextFilter; company?: { name: TextFilter } }[];
 }
 
@@ -78,6 +79,7 @@ const SUPPORTED_APPLICATION_FILTERS = new Set([
   'id',
   'userId',
   'companyId',
+  'createdAt',
   'status',
   'contractType',
   'workMode',
@@ -249,6 +251,11 @@ export function createFakePrisma() {
     if (where.location && !containsText(application.location, where.location.contains)) {
       return false;
     }
+
+    if (where.createdAt && application.createdAt < where.createdAt.gte) {
+      return false;
+    }
+
     if (where.OR) {
       const found = where.OR.some(
         (condition) =>
@@ -366,7 +373,13 @@ export function createFakePrisma() {
     count: ({ where }: { where: ApplicationWhere }) =>
       attempt(() => selectApplications(where).length),
 
-    groupBy: ({ where }: { by: ['status']; where: ApplicationWhere; _count: { _all: true } }) =>
+    groupBy: ({
+      where = {},
+    }: {
+      by: ['status'];
+      where?: ApplicationWhere;
+      _count: { _all: true };
+    }) =>
       attempt(() => {
         const counts = new Map<ApplicationStatus, number>();
         for (const row of selectApplications(where)) {
@@ -467,6 +480,26 @@ export function createFakePrisma() {
         users.set(created.id, created);
         return created;
       }),
+
+    groupBy: () =>
+      attempt(() => {
+        const counts = new Map<AccountStatus, number>();
+        for (const row of users.values()) {
+          counts.set(row.accountStatus, (counts.get(row.accountStatus) ?? 0) + 1);
+        }
+        return [...counts.entries()].map(([accountStatus, count]) => ({
+          accountStatus,
+          _count: { _all: count },
+        }));
+      }),
+
+    count: ({ where }: { where?: { createdAt?: { gte: Date } } } = {}) =>
+      attempt(
+        () =>
+          [...users.values()].filter(
+            (row) => !where?.createdAt || row.createdAt >= where.createdAt.gte,
+          ).length,
+      ),
   };
 
   // ------------------------------------------------------------- transactions
@@ -506,6 +539,18 @@ export function createFakePrisma() {
           toStatus,
           changedByUserId,
         })),
+    /** Adds a user directly, for example an administrator or a suspended account. */
+    seedUser: (fields: Partial<User> & { id: string; email: string }): void => {
+      const now = new Date();
+      users.set(fields.id, {
+        role: Role.USER,
+        accountStatus: AccountStatus.ACTIVE,
+        displayName: null,
+        createdAt: now,
+        updatedAt: now,
+        ...fields,
+      });
+    },
 
     /** Makes the next write of a status history line fail. */
     failNextHistoryWrite: (): void => {

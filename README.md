@@ -59,6 +59,7 @@ Run these from the repository root.
 | `npm run typecheck`    | Type-check every application            |
 | `npm run build`        | Build every application                 |
 | `npm run test`         | Run the tests of every application      |
+| `npx prettier --write` | Run prettier                            |
 
 ## Database migrations
 
