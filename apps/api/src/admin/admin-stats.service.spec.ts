@@ -61,12 +61,14 @@ describe('AdminStatsService', () => {
 
     expect(applicationGroupBy).toHaveBeenCalledWith({
       by: ['status'],
+      orderBy: { status: 'asc' },
       _count: { _all: true },
     });
     // The service has no other way to reach applications than these two counting queries.
     expect(Object.keys(applicationGroupBy.mock.calls[0][0] as object).sort()).toEqual([
       '_count',
       'by',
+      'orderBy',
     ]);
   });
 });
