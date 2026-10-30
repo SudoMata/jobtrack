@@ -45,6 +45,11 @@ interface ApplicationWhere {
   OR?: { position?: TextFilter; company?: { name: TextFilter } }[];
 }
 
+interface UserWhere {
+  createdAt?: { gte: Date };
+  OR?: { email?: TextFilter; displayName?: TextFilter }[];
+}
+
 interface ApplicationCreateData {
   userId: string;
   companyId: string;
@@ -460,6 +465,41 @@ export function createFakePrisma() {
       }),
   };
 
+  const matchesUser = (candidate: User, where: UserWhere = {}): boolean => {
+    for (const key of Object.keys(where)) {
+      if (key !== 'createdAt' && key !== 'OR') {
+        throw new Error(`The fake database does not support the user filter "${key}"`);
+      }
+    }
+    if (where.createdAt && candidate.createdAt < where.createdAt.gte) {
+      return false;
+    }
+    if (
+      where.OR &&
+      !where.OR.some(
+        (condition) =>
+          (condition.email && containsText(candidate.email, condition.email.contains)) ||
+          (condition.displayName &&
+            containsText(candidate.displayName, condition.displayName.contains)),
+      )
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const selectUsers = (where?: UserWhere): User[] =>
+    [...users.values()].filter((candidate) => matchesUser(candidate, where));
+
+  const pickColumns = (row: User, select?: Record<string, boolean>): unknown =>
+    select
+      ? Object.fromEntries(
+          Object.entries(select)
+            .filter(([, selected]) => selected)
+            .map(([column]) => [column, row[column as keyof User]]),
+        )
+      : row;
+
   // -------------------------------------------------------------------- users
 
   const user = {
@@ -481,6 +521,40 @@ export function createFakePrisma() {
         return created;
       }),
 
+    findUniqueOrThrow: ({
+      where,
+      select,
+    }: {
+      where: { id: string };
+      select?: Record<string, boolean>;
+    }) =>
+      attempt(() => {
+        const found = users.get(where.id);
+        if (!found) {
+          throw prismaError('P2025');
+        }
+        return pickColumns(found, select);
+      }),
+
+    findMany: ({
+      where,
+      select,
+      skip = 0,
+      take,
+    }: {
+      where?: UserWhere;
+      select?: Record<string, boolean>;
+      skip?: number;
+      take: number;
+    }) =>
+      attempt(() =>
+        selectUsers(where)
+          // Newest first, then by id, like the real query.
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
+          .slice(skip, skip + take)
+          .map((row) => pickColumns(row, select)),
+      ),
+
     groupBy: () =>
       attempt(() => {
         const counts = new Map<AccountStatus, number>();
@@ -493,13 +567,7 @@ export function createFakePrisma() {
         }));
       }),
 
-    count: ({ where }: { where?: { createdAt?: { gte: Date } } } = {}) =>
-      attempt(
-        () =>
-          [...users.values()].filter(
-            (row) => !where?.createdAt || row.createdAt >= where.createdAt.gte,
-          ).length,
-      ),
+    count: ({ where }: { where?: UserWhere } = {}) => attempt(() => selectUsers(where).length),
   };
 
   // ------------------------------------------------------------- transactions
