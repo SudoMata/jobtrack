@@ -4,6 +4,7 @@ import type {
   Application,
   ApplicationStatusHistory,
   Company,
+  AuditLog,
   User,
 } from '../../src/generated/prisma/client';
 import {
@@ -128,6 +129,8 @@ export function createFakePrisma() {
   const companies = new Map<string, Company>();
   let applications = new Map<string, Application>();
   let histories: ApplicationStatusHistory[] = [];
+  let auditLogs: AuditLog[] = [];
+  let failNextAudit = false;
 
   /** Ids of companies that must be considered in use even without an application. */
   const companiesInUse = new Set<string>();
@@ -568,7 +571,68 @@ export function createFakePrisma() {
       }),
 
     count: ({ where }: { where?: UserWhere } = {}) => attempt(() => selectUsers(where).length),
+
+    update: ({
+      where,
+      data,
+      select,
+    }: {
+      where: { id: string };
+      data: Partial<User>;
+      select?: Record<string, boolean>;
+    }) =>
+      attempt(() => {
+        const existing = users.get(where.id);
+        if (!existing) {
+          throw prismaError('P2025');
+        }
+        const updated: User = { ...existing, ...data, updatedAt: new Date() };
+        users.set(updated.id, updated);
+        return pickColumns(updated, select);
+      }),
   };
+
+  const auditLog = {
+    create: ({
+      data,
+    }: {
+      data: Omit<AuditLog, 'id' | 'createdAt' | 'metadata'> & { metadata?: unknown };
+    }) =>
+      attempt(() => {
+        if (failNextAudit) {
+          failNextAudit = false;
+          throw new Error('Simulated failure while writing the audit log');
+        }
+        const entry = {
+          id: randomUUID(),
+          ...data,
+          metadata: data.metadata ?? null,
+          createdAt: new Date(),
+        } as AuditLog;
+        auditLogs.push(entry);
+        return entry;
+      }),
+  };
+
+  /**
+   * Stands in for the single locking query of the admin service
+   * (`lockUsersForChange`): the target user and every active administrator.
+   */
+  const $queryRaw = (strings: TemplateStringsArray, ...values: unknown[]) =>
+    attempt(() => {
+      if (!strings.join('?').includes('FOR UPDATE')) {
+        throw new Error('The fake database only supports the locking query of the admin service');
+      }
+      const targetId = values[0] as string;
+      return [...users.values()]
+        .filter(
+          (row) =>
+            row.id === targetId ||
+            (row.role === Role.ADMIN && row.accountStatus === AccountStatus.ACTIVE),
+        )
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(({ id, role, accountStatus }) => ({ id, role, accountStatus }));
+    });
 
   // ------------------------------------------------------------- transactions
 
@@ -585,11 +649,22 @@ export function createFakePrisma() {
 
     const savedApplications = new Map(applications);
     const savedHistories = [...histories];
+    const savedUsers = new Map(users);
+    const savedAuditLogs = [...auditLogs];
     try {
-      return await work({ application, applicationStatusHistory });
+      return await work({
+        application,
+        applicationStatusHistory,
+        user,
+        auditLog,
+        $queryRaw,
+      });
     } catch (error) {
       applications = savedApplications;
       histories = savedHistories;
+      users.clear();
+      savedUsers.forEach((value, key) => users.set(key, value));
+      auditLogs = savedAuditLogs;
       throw error;
     }
   };
@@ -607,6 +682,21 @@ export function createFakePrisma() {
           toStatus,
           changedByUserId,
         })),
+
+    /** The audit events recorded so far, oldest first. */
+    auditLogsOf: () =>
+      auditLogs.map(({ actorUserId, action, resourceType, resourceId, metadata }) => ({
+        actorUserId,
+        action,
+        resourceType,
+        resourceId,
+        metadata,
+      })),
+
+    /** Makes the next write of an audit event fail. */
+    failNextAuditWrite: (): void => {
+      failNextAudit = true;
+    },
     /** Adds a user directly, for example an administrator or a suspended account. */
     seedUser: (fields: Partial<User> & { id: string; email: string }): void => {
       const now = new Date();
@@ -630,6 +720,8 @@ export function createFakePrisma() {
       companies.clear();
       applications = new Map();
       histories = [];
+      auditLogs = [];
+      failNextAudit = false;
       companiesInUse.clear();
       failNextHistory = false;
     },
